@@ -1,0 +1,33 @@
+/*
+ * Author	: Aman Bhatia
+ * Dated	: 09/03/2016
+ * Title	: Report for Parallelizing Traveling Salesperson Problem (TSP) using OpenMP
+ */
+
+
+
+======================================================================================================
+//	IMPORTANT POINTS TO MENTION    :    LOAD-BALANCING STRATEGY    :    PRALLAELIZATION STRATEGY    //
+======================================================================================================
+
+
+- I observed that DFS Exploration is good so that we can quickly have a resonable cost of best_tour rather than INFINITY, as that will surely help in pruning.
+
+
+- For distributing work among threads, we calculate some partial tours, pushed them in a queue and when we have sufficient number of partial tours (i.e. num_partial_tours in queue >= thread_count) then we distribute them to different threads.
+
+
+- But computing partial tours ( for distributing them to threads) in DFS fashion is not good. In DFS fashion, different partial threads will have different workload, which is not a nice load balancing strategy.
+
+
+- So what we did is that we computed partial tours in BFS fashion. This way partial tours will have equal work-load (equal in terms of levels left to explore).
+
+
+- We then distribute partial tours in round-robin fashion, so that work can get as equally distributed as possible. So, some threads can have a little more work to do than others.
+
+
+- So, now each thread has some partial tours to explore. We then explore the rest of the tree parallelly in DFS fashion.
+
+
+--------------------------------------------END OF REPORT--------------------------------------------------
+
