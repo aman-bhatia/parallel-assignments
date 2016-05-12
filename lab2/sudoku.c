@@ -9,28 +9,28 @@ extern int thread_count;
 
 bool result_found = false;
 
-int*** allocateArray(int n){
-	int ***a = malloc(sizeof(int**)*n);
+char*** allocateArray(int n){
+	char ***a = malloc(sizeof(char**)*n);
 	int i,j;
 	for(i=0;i<n;i++){
-		a[i] = malloc(sizeof(int*)*n);
+		a[i] = malloc(sizeof(char*)*n);
 		for(j=0;j<n;j++){
-			a[i][j] = malloc(sizeof(int)*n);
+			a[i][j] = malloc(sizeof(char)*(n+1));
 		}
 	}
 	return a;
 }
 
-int** allocate2DArray(int n){
-	int **a = malloc(sizeof(int*)*n);
+char** allocate2DArray(int n){
+	char **a = malloc(sizeof(char*)*n);
 	int i;
 	for(i=0;i<n;i++){
-		a[i] = malloc(sizeof(int)*n);
+		a[i] = malloc(sizeof(char)*n);
 	}
 	return a;
 }
 
-void freeArray(int ***a,int n){
+void freeArray(char ***a,int n){
 	int i,j;
 	for(i=0;i<n;i++){
 		for(j=0;j<n;j++){
@@ -41,7 +41,7 @@ void freeArray(int ***a,int n){
 	free(a);
 }
 
-void free2DArray(int **a,int n){
+void free2DArray(char **a,int n){
 	int i;
 	for(i=0;i<n;i++){
 		free(a[i]);
@@ -49,18 +49,18 @@ void free2DArray(int **a,int n){
 	free(a);
 }
 
-void copyArray(int ***src, int ***dest, int n){
+void copyArray(char ***src, char ***dest, int n){
 	int i,j,k;
 	for(i=0;i<n;i++){
 		for(j=0;j<n;j++){
-			for(k=0;k<n;k++){
+			for(k=0;k<n+1;k++){
 				dest[i][j][k] = src[i][j][k];
 			}
 		}
 	}
 }
 
-void copy2DArray(int **src,int **dest,int n){
+void copy2DArray(char **src,char **dest,int n){
 	int i,j;
 	for(i=0;i<n;i++){
 		for(j=0;j<n;j++){
@@ -69,47 +69,42 @@ void copy2DArray(int **src,int **dest,int n){
 	}
 }
 
-bool checkNumInRow(int **grid,int row,int num){
-	int col;
-	for(col=0;col<SIZE;col++){
-		if(grid[row][col]==num){
-			return true;
+//---------------------------Board Functions-------------------//
+
+typedef struct {
+	char** grid;
+	char*** possibleValues;
+} board;
+typedef board* board_ptr;
+
+board_ptr boardAlloc(){
+	board_ptr b = malloc(sizeof(board));
+	return b;
+}
+
+void freeBoard(board_ptr b){
+	free2DArray(b->grid,SIZE);
+	freeArray(b->possibleValues,SIZE);
+	free(b);
+}
+
+//---------------------------------------------------------------//
+
+bool isValidNum(char **grid,int row,int col,char num){
+
+	int boxStartRow = row-row%MINIGRIDSIZE;
+	int boxStartCol = col-col%MINIGRIDSIZE;
+	
+	int i;
+	for(i=0;i<SIZE;i++){
+		if ((grid[row][i]==num) || (grid[i][col]==num) || (grid[boxStartRow+(i/MINIGRIDSIZE)][boxStartCol+(i%MINIGRIDSIZE)]==num)) {
+			return false;
 		}
 	}
-	return false;
+	return true;
 }
 
-bool checkNumInCol(int **grid,int col,int num){
-	int row;
-	for(row=0;row<SIZE;row++){
-		if(grid[row][col]==num){
-			return true;
-		}
-	}
-	return false;
-}
-
-bool checkNumInBox(int **grid,int boxStartRow,int boxStartCol,int num){
-	int row,col;
-	for(row=0;row<MINIGRIDSIZE;row++){
-		for(col=0;col<MINIGRIDSIZE;col++){
-			if(grid[boxStartRow+row][boxStartCol+col]==num){
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-
-bool isValidNum(int **grid,int row,int col,int num){
-	bool rowCheck = checkNumInRow(grid,row,num);
-	bool colCheck = checkNumInCol(grid,col,num);
-	bool boxCheck = checkNumInBox(grid,row-row%MINIGRIDSIZE,col-col%MINIGRIDSIZE,num);
-	return (!rowCheck && !colCheck && !boxCheck);
-}
-
-bool getEmptyCell(int **grid,int* row,int* col){
+bool getEmptyCell(char **grid,int* row,int* col){
 	int i,j;
 	for(i=0;i<SIZE;i++){
 		for(j=0;j<SIZE;j++){
@@ -123,22 +118,16 @@ bool getEmptyCell(int **grid,int* row,int* col){
 	return false;
 }
 
-bool getMinimumEmptyCell(int **grid, int*** possibleValues, int* row,int* col){
-	int i,j,k,count;
+bool getMinimumEmptyCell(board_ptr b, int* row,int* col){
+	int i,j,k;
 	int minPossibleValue = SIZE+1;
 	bool flag=false;
 	
 	for(i=0;i<SIZE;i++){
 		for(j=0;j<SIZE;j++){
-			if(grid[i][j]==0){
-				count=0;
-				for(k=0;k<SIZE;k++){
-					if(possibleValues[i][j][k]==1){
-						count++;
-					}
-				}
-				if(count<minPossibleValue){
-					minPossibleValue = count;
+			if(b->grid[i][j]==0){
+				if(b->possibleValues[i][j][0]<minPossibleValue){
+					minPossibleValue = b->possibleValues[i][j][0];
 					*row = i;
 					*col = j;
 					flag=true;
@@ -149,112 +138,78 @@ bool getMinimumEmptyCell(int **grid, int*** possibleValues, int* row,int* col){
 	return flag;
 }
 
-void initialisePossibleValues(int **grid,int*** possibleValues){
+void initialisePossibleValues(board_ptr b){
 	int row,col,num;
 	for(row=0;row<SIZE;row++){
 		for(col=0;col<SIZE;col++){
-			if(grid[row][col]==0){
+			if(b->grid[row][col]==0){
+				b->possibleValues[row][col][0] = 0;
 				for(num=1;num<=SIZE;num++){
-					if(isValidNum(grid,row,col,num)){
-						possibleValues[row][col][num-1] = 1;
-					}else{
-						possibleValues[row][col][num-1] = 0;
+					if (isValidNum(b->grid,row,col,num)){
+						b->possibleValues[row][col][num] = 1;
+						b->possibleValues[row][col][0]++;
+					} else{
+						b->possibleValues[row][col][num] = 0;
 					}
 				}	
 			}else{
+				b->possibleValues[row][col][0] = 1;
 				for(num=1;num<=SIZE;num++){
-					if(num==grid[row][col]){
-						possibleValues[row][col][num-1] = 1;
-					}else{
-						possibleValues[row][col][num-1] = 0;	
-					}
+					b->possibleValues[row][col][num] = (num==b->grid[row][col]);
 				}	
 			}
 		}
 	}
 }
 
-void updatePossibleValues(int **grid,int*** possibleValues, int row,int col){
+void updatePossibleValues(board_ptr b, int row,int col){
 	
-	int i,j,num;
-
-	// update row
-	for(i=0;i<SIZE;i++){
-		if(grid[row][i]==0){
-			for(num=1;num<=SIZE;num++){
-				if(isValidNum(grid,row,i,num)){
-					possibleValues[row][i][num-1] = 1;
-				}else{
-					possibleValues[row][i][num-1] = 0;
-				}
-			}
-		}else{
-			for(num=1;num<=SIZE;num++){
-				if(num==grid[row][i]){
-					possibleValues[row][i][num-1] = 1;
-				}else{
-					possibleValues[row][i][num-1] = 0;	
-				}
-			}	
-		}
-	}
-
-	// update column
-	for(i=0;i<SIZE;i++){
-		if(grid[i][col]==0){
-			for(num=1;num<=SIZE;num++){
-				if(isValidNum(grid,i,col,num)){
-					possibleValues[i][col][num-1] = 1;
-				}else{
-					possibleValues[i][col][num-1] = 0;
-				}
-			}
-		}else{
-			for(num=1;num<=SIZE;num++){
-				if(num==grid[i][col]){
-					possibleValues[i][col][num-1] = 1;
-				}else{
-					possibleValues[i][col][num-1] = 0;	
-				}
-			}	
-		}
-	}
-
-	// uppdate grid
+	int i;
 	int boxStartRow = row - row%MINIGRIDSIZE;
 	int boxStartCol = col -  col%MINIGRIDSIZE;
-	for(i=boxStartRow;i<boxStartRow+MINIGRIDSIZE;i++){
-		for(j=boxStartCol;j<boxStartCol+MINIGRIDSIZE;j++){
-			if(grid[i][j]==0){
-				for(num=1;num<=SIZE;num++){
-					if(isValidNum(grid,i,j,num)){
-						possibleValues[i][j][num-1] = 1;
-					}else{
-						possibleValues[i][j][num-1] = 0;
-					}
-				}
-			}else{
-				for(num=1;num<=SIZE;num++){
-					if(num==grid[i][j]){
-						possibleValues[i][j][num-1] = 1;
-					}else{
-						possibleValues[i][j][num-1] = 0;	
-					}
-				}	
-			}
+
+	char num = b->grid[row][col];
+
+	for(i=0;i<SIZE;i++){
+		// update ith row element
+		if(b->grid[row][i]==0 && b->possibleValues[row][i][num]==1){
+			b->possibleValues[row][i][num] = 0;
+			b->possibleValues[row][i][0]--;
 		}
+
+		//update ith column element
+		if(b->grid[i][col]==0 && b->possibleValues[i][col][num]==1){
+			b->possibleValues[i][col][num] = 0;
+			b->possibleValues[i][col][0]--;
+		}
+
+		// update (i/MINIGRIDSIZE) , (i%MINIGRIDSIZE) box element
+		int r = boxStartRow + (i/MINIGRIDSIZE);
+		int c = boxStartCol + (i%MINIGRIDSIZE);
+		if(b->grid[r][c]==0 && b->possibleValues[r][c][num]==1){
+			b->possibleValues[r][c][num] = 0;
+			b->possibleValues[r][c][0]--;
+		}
+	}
+
+	// update the row,col cell
+	b->possibleValues[row][col][0] = 1;
+	for(num=1;num<=SIZE;num++){
+		b->possibleValues[row][col][num] = (num==b->grid[row][col]);
 	}
 }
 
-bool loneRangerOnRow(int **grid, int*** possibleValues,int row){
+bool loneRangerOnRow(board_ptr b,int row){
 	
-	int col,num;
+	int col;
 	int count,index;
-	
+	char num;
+
 	for(num=1;num<=SIZE;num++){
 		count=0;
 		for(col=0;col<SIZE;col++){
-			if(possibleValues[row][col][num-1]==1){
+			if(b->possibleValues[row][col][num]==1){
+				if (b->grid[row][col] != 0) break;
 				count++;
 				index = col;
 			}
@@ -262,26 +217,26 @@ bool loneRangerOnRow(int **grid, int*** possibleValues,int row){
 				break;
 		}
 		if(count==1){
-			if(grid[row][index]==0){
-				grid[row][index]=num;
-				updatePossibleValues(grid,possibleValues, row,index);
-				return true;	
-			}
+			b->grid[row][index]=num;
+			updatePossibleValues(b, row,index);
+			return true;	
 		}
 	}
 
 	return false;
 }
 
-bool loneRangerOnCol(int **grid, int*** possibleValues,int col){
+bool loneRangerOnCol(board_ptr b,int col){
 
-	int row,num;
+	int row;
 	int count,index;
-	
+	char num;
+
 	for(num=1;num<=SIZE;num++){
 		count=0;
 		for(row=0;row<SIZE;row++){
-			if(possibleValues[row][col][num-1]==1){
+			if(b->possibleValues[row][col][num]==1){
+				if (b->grid[row][col] != 0) break;
 				count++;
 				index = row;
 			}
@@ -289,27 +244,27 @@ bool loneRangerOnCol(int **grid, int*** possibleValues,int col){
 				break;
 		}
 		if(count==1){
-			if(grid[index][col]==0){
-				grid[index][col]=num;
-				updatePossibleValues(grid,possibleValues, index,col);
-				return true;
-			}
+			b->grid[index][col]=num;
+			updatePossibleValues(b, index,col);
+			return true;
 		}
 	}
 
 	return false;
 }
 
-bool loneRangerOnBox(int **grid, int*** possibleValues,int boxStartRow,int boxStartCol){
+bool loneRangerOnBox(board_ptr b,int boxStartRow,int boxStartCol){
 	
-	int row,col,num;
+	int row,col;
 	int count,rowIndex,colIndex;
-	
+	char num;
+
 	for(num=1;num<=SIZE;num++){
 		count=0;
 		for(row=0;row<MINIGRIDSIZE;row++){
 			for(col=0;col<MINIGRIDSIZE;col++){
-				if(possibleValues[row+boxStartRow][col+boxStartCol][num-1]==1){
+				if(b->possibleValues[row+boxStartRow][col+boxStartCol][num]==1){
+				if (b->grid[row+boxStartRow][col+boxStartCol] != 0) break;
 					count++;
 					rowIndex = row;
 					colIndex = col;
@@ -321,39 +276,40 @@ bool loneRangerOnBox(int **grid, int*** possibleValues,int boxStartRow,int boxSt
 				break;	
 		}
 		if(count==1){
-			if(grid[rowIndex+boxStartRow][colIndex+boxStartCol]==0){
-				grid[rowIndex+boxStartRow][colIndex+boxStartCol]=num;
-				updatePossibleValues(grid,possibleValues, rowIndex+boxStartRow,colIndex+boxStartCol);
-				return true;
-			}
+			b->grid[rowIndex+boxStartRow][colIndex+boxStartCol]=num;
+			updatePossibleValues(b, rowIndex+boxStartRow,colIndex+boxStartCol);
+			return true;
 		}
 	}
 
 	return false;
 }
 
-bool loneRanger(int **grid ,int*** possibleValues){
+bool loneRanger(board_ptr b){
 
 	bool toReturn = false;
 
 	int row;
 	for(row=0;row<SIZE;row++){
-		if(loneRangerOnRow(grid,possibleValues, row)){
+		if(loneRangerOnRow(b, row)){
 			toReturn = true;
+			// return true;
 		}
 	}
 
 	int col;
 	for(col=0;col<SIZE;col++){
-		if(loneRangerOnCol(grid,possibleValues, col)){
+		if(loneRangerOnCol(b, col)){
 			toReturn = true;
+			// return true;
 		}
 	}
 
 	for(row=0;row<SIZE;row=row+MINIGRIDSIZE){
 		for(col=0;col<SIZE;col=col+MINIGRIDSIZE){
-			if(loneRangerOnBox(grid,possibleValues, row,col)){
+			if(loneRangerOnBox(b, row,col)){
 				toReturn = true;
+				// return true;
 			}
 		}
 	}
@@ -362,113 +318,98 @@ bool loneRanger(int **grid ,int*** possibleValues){
 }
 
 
-bool eliminationOnRow(int **grid, int*** possibleValues,int row){
+bool eliminationOnRow(board_ptr b,int row){
 	
 	bool toReturn=false;
-	int col,num;
-	int numPossibleValuesForCell;
-	int possibleNum;
+	int col;
+	char num;
 	
 	for(col=0;col<SIZE;col++){
-		if(grid[row][col]==0){
-			numPossibleValuesForCell = 0;
-			for(num=1;num<=SIZE;num++){
-				if(possibleValues[row][col][num-1]==1){
-					numPossibleValuesForCell++;
-					possibleNum=num;
+		if(b->grid[row][col]==0){
+			if(b->possibleValues[row][col][0]==1){
+				for(num=1;num<=SIZE;num++){
+					if (b->possibleValues[row][col][num]==1){
+						b->grid[row][col]=num;
+						updatePossibleValues(b, row,col);
+						toReturn = true;
+						break;
+					}
 				}
-				if (numPossibleValuesForCell > 1)
-					break;
-			}
-			if(numPossibleValuesForCell==1){
-				grid[row][col]=possibleNum;
-				updatePossibleValues(grid,possibleValues, row,col);
-				toReturn = true;
 			}	
 		}
 	}
 	return toReturn;
 }
 
-bool eliminationOnCol(int **grid, int*** possibleValues,int col){
+bool eliminationOnCol(board_ptr b,int col){
 	
 	bool toReturn=false;
-	int row,num;
-	int numPossibleValuesForCell;
-	int possibleNum;
+	int row;
+	char num;
 	
 	for(row=0;row<SIZE;row++){
-		if(grid[row][col]==0){
-			numPossibleValuesForCell = 0;
-			for(num=1;num<=SIZE;num++){
-				if(possibleValues[row][col][num-1]==1){
-					numPossibleValuesForCell++;
-					possibleNum=num;
+		if(b->grid[row][col]==0){
+			if(b->possibleValues[row][col][0]==1){
+				for(num=1;num<=SIZE;num++){
+					if(b->possibleValues[row][col][num]==1){
+						b->grid[row][col]=num;
+						updatePossibleValues(b, row,col);
+						toReturn=true;
+						break;
+					}
 				}
-				if (numPossibleValuesForCell > 1)
-					break;
 			}
-			if(numPossibleValuesForCell==1){
-				grid[row][col]=possibleNum;
-				updatePossibleValues(grid,possibleValues, row,col);
-				toReturn=true;
-			}	
 		}
 	}
 	return toReturn;
 }
 
-bool eliminationOnBox(int **grid, int*** possibleValues,int boxStartRow,int boxStartCol){
+bool eliminationOnBox(board_ptr b,int boxStartRow,int boxStartCol){
 	
 	bool toReturn=false;
-	int row,col,num;
-	int numPossibleValuesForCell;
-	int possibleNum;
+	int row,col;
+	char num;
 
 	for(row=0;row<MINIGRIDSIZE;row++){
 		for(col=0;col<MINIGRIDSIZE;col++){
-			if(grid[row+boxStartRow][col+boxStartCol]==0){
-				numPossibleValuesForCell=0;
-				for(num=1;num<=SIZE;num++){
-					if(possibleValues[row+boxStartRow][col+boxStartCol][num-1]==1){
-						numPossibleValuesForCell++;
-						possibleNum=num;
+			if(b->grid[row+boxStartRow][col+boxStartCol]==0){
+				if(b->possibleValues[row+boxStartRow][col+boxStartCol][0]==1){
+					for(num=1;num<=SIZE;num++){
+						if(b->possibleValues[row+boxStartRow][col+boxStartCol][num]==1){
+							b->grid[row+boxStartRow][col+boxStartCol]=num;
+							updatePossibleValues(b, row+boxStartRow,col+boxStartCol);
+							toReturn=true;
+							break;
+						}
 					}
-					if (numPossibleValuesForCell > 1)
-						break;
 				}
-				if(numPossibleValuesForCell==1){
-					grid[row+boxStartRow][col+boxStartCol]=possibleNum;
-					updatePossibleValues(grid,possibleValues, row+boxStartRow,col+boxStartCol);
-					toReturn=true;
-				}	
 			}
 		}
 	}
 	return toReturn;
 }
 
-bool elimination(int **grid,int*** possibleValues){
+bool elimination(board_ptr b){
 	
 	bool toReturn = false;
 
 	int row;
 	for(row=0;row<SIZE;row++){
-		if(eliminationOnRow(grid,possibleValues, row)){
+		if(eliminationOnRow(b, row)){
 			toReturn = true;
 		}
 	}
 
 	int col;
 	for(col=0;col<SIZE;col++){
-		if(eliminationOnCol(grid,possibleValues, col)){
+		if(eliminationOnCol(b, col)){
 			toReturn = true;
 		}
 	}
 
 	for(row=0;row<SIZE;row=row+MINIGRIDSIZE){
 		for(col=0;col<SIZE;col=col+MINIGRIDSIZE){
-			if(eliminationOnBox(grid,possibleValues, row,col)){
+			if(eliminationOnBox(b, row,col)){
 				toReturn = true;
 			}
 		}
@@ -477,11 +418,11 @@ bool elimination(int **grid,int*** possibleValues){
 	return toReturn;
 }
 
-void applyHeuristics(int **grid,int*** possibleValues){
+void applyHeuristics(board_ptr b){
 
 	while(true){
-		while(elimination(grid,possibleValues));
-		if(!loneRanger(grid,possibleValues))
+		while(elimination(b));
+		if(!loneRanger(b))
 			break;
 	}	
 }
@@ -490,7 +431,7 @@ void applyHeuristics(int **grid,int*** possibleValues){
 /*----------------- Stack Functions ----------------------*/
 
 typedef struct {
-	int*** grid_list;
+	board_ptr* board_list;
 	int list_sz;
 	int list_alloc;
 } stack_struct;
@@ -500,7 +441,7 @@ typedef stack_struct* my_stack_t;
 // initializes the stack, sets list_alloc to initial_size
 void Stack_init(my_stack_t s, int initial_size){
 	s->list_alloc = initial_size;
-	s->grid_list = (int***) malloc(s->list_alloc * sizeof(int**));
+	s->board_list = (board_ptr*) malloc(s->list_alloc * sizeof(board_ptr));
 	s->list_sz = 0;
 }
 
@@ -510,12 +451,13 @@ bool Empty_stack(my_stack_t s){
 }
 
 // returns the top most element of the stack , and decrement stacks size by one
-int** Pop(my_stack_t s){
+board_ptr Pop(my_stack_t s){
 	if (s->list_sz==0){
 		printf("Error : Nothing to pop\n");
 		exit(0);
+		// return NULL;
 	}
-	int** last = s->grid_list[s->list_sz - 1];
+	board_ptr last = s->board_list[s->list_sz - 1];
 	(s->list_sz)--;
 	return last;
 }
@@ -525,175 +467,154 @@ int Size(my_stack_t s){
 }
 
 // pushes an element to the top of the stack
-void Push(my_stack_t s, int** grid){
+void Push(my_stack_t s, board_ptr b){
 	if (s->list_sz == s->list_alloc){
-		s->grid_list = (int***) realloc(s->grid_list , 2*s->list_alloc*sizeof(int**));
+		s->board_list = (board_ptr*) realloc(s->board_list , 2*s->list_alloc*sizeof(board_ptr));
 		s->list_alloc *= 2;
 	}
-	s->grid_list[s->list_sz] = grid;
+	s->board_list[s->list_sz] = b;
 	(s->list_sz)++;
+}
+
+int** char2int(char** charGrid, int** intGrid, int n){
+	int i,j;
+	for(i=0;i<n;i++){
+		for(j=0;j<n;j++){
+			intGrid[i][j] = charGrid[i][j];
+		}
+	}
+	return intGrid;
+}
+
+char** int2char(int** intGrid, char** charGrid, int n){
+	int i,j;
+	for(i=0;i<n;i++){
+		for(j=0;j<n;j++){
+			charGrid[i][j] = intGrid[i][j];
+		}
+	}
+	return charGrid;
 }
 
 /*----------------------------------------------------------*/
 
-void initParallelSolver(my_stack_t s, int num_threads){
-
-	while(Size(s) < num_threads){
-		int** grid;
-		if (!Empty_stack(s))
-			grid = Pop(s);
-		else return;
-		// printf("hjcbkjdbcksjbcjsbdcj\n\n");
-		int row,col;
-
-		if(!getEmptyCell(grid,&row,&col)){
-			return;
-		}
-		// printf("r,c : %d,%d\n",row,col);
-		int num;
-		for(num=1;num <=SIZE;num++){
-			// printf("num : %d\n",num);
-			if(isValidNum(grid,row,col,num)){
-				grid[row][col] = num;
-				
-				int** new_grid = allocate2DArray(SIZE);
-				copy2DArray(grid,new_grid,SIZE);
-
-				Push(s,new_grid);
-				// printf("Stack Size : %d\n",Size(s));
-			}
-		}
-		free2DArray(grid,SIZE);
-	}
-}
-
-bool isSolutionExist(int** grid,int*** possibleValues){
-
-	if (result_found) return false;
-
-	int row,col;
-	if(!getMinimumEmptyCell(grid,possibleValues,&row,&col)){
-		return true;
-	}
-
-	int num;
-
-	// make copy of possibleValues
-	int*** origPossibleValues = allocateArray(SIZE);
-	copyArray(possibleValues,origPossibleValues,SIZE);
-
-	int** originalGrid = allocate2DArray(SIZE);
-	copy2DArray(grid,originalGrid,SIZE);
-				
-	for(num=1;num <=SIZE;num++){
-		if(possibleValues[row][col][num-1]==1){
-			grid[row][col] = num;			
-			
-			updatePossibleValues(grid,possibleValues, row,col);
-
-			applyHeuristics(grid,possibleValues);
-			
-			if(isSolutionExist(grid,possibleValues)){
-				free2DArray(originalGrid,SIZE);
-				freeArray(origPossibleValues,SIZE);
-				return true;
-			}
-			
-			// restore possibleValues
-			copy2DArray(originalGrid,grid,SIZE);
-			copyArray(origPossibleValues,possibleValues,SIZE);
-			grid[row][col] = 0;
-		}
-	}
-
-	free2DArray(originalGrid,SIZE);
-	freeArray(origPossibleValues,SIZE);
-	return false;	
-}
-
 int** solveSudoku(int **grid){
-	int*** possibleValues=allocateArray(SIZE);
-	initialisePossibleValues(grid, possibleValues);
-	applyHeuristics(grid,possibleValues); // can be parallelized
-	
+
+	if (SIZE==9 || SIZE==16) thread_count=1;
+	else if (SIZE==25) thread_count=16;
+	else if (SIZE==36) thread_count=25;
+
+	// make copy of original grid
+	char** givenGrid=allocate2DArray(SIZE);
+	givenGrid = int2char(grid,givenGrid,SIZE);
+
+	// allocate board for given grid
+	board_ptr b = boardAlloc();
+	b->grid = givenGrid;
+	b->possibleValues=allocateArray(SIZE);
+	initialisePossibleValues(b);
+
+	applyHeuristics(b);
+
 	int r,c;
-	if(!getMinimumEmptyCell(grid, possibleValues,&r,&c)){
-		return grid;
-	}
-	
-	// printf("\n************************GRID AFTER APPLYING HEURISTICS***********************\n");
-	// int i,j;
-	// for (i=0;i<SIZE;i++){
-	// 	for (j=0;j<SIZE;j++)
-	// 		printf("%d ",grid[i][j]);
-	// 	printf("\n");
-	// }
-	// printf("*********************************************************\n\n");
-
-
-	// printf("NUM THREADS : %d\n",thread_count);
-	my_stack_t grid_stack = malloc(sizeof(stack_struct));
-	Stack_init(grid_stack,thread_count);
-
-	int** temp_grid = allocate2DArray(SIZE);
-	copy2DArray(grid,temp_grid,SIZE);
-	Push(grid_stack,temp_grid);
-
-	initParallelSolver(grid_stack, thread_count);
-
-	// printf("After init parallel solver Stack size : %d\n",Size(grid_stack));
-
-	if (Size(grid_stack) == 0)
-		return grid;
-
-	while(Size(grid_stack) < thread_count){
-		Push(grid_stack,grid_stack->grid_list[Size(grid_stack)-1]);
+	if(!getMinimumEmptyCell(b,&r,&c)){
+		return char2int(b->grid,grid,SIZE);		// solution found
 	}
 
-	int** result_grid = allocate2DArray(SIZE);
+	if (b->possibleValues[r][c][0]==0){
+		return grid;		// no solution exist
+	}
 
-	#pragma omp parallel num_threads(thread_count) shared(grid_stack)
+	my_stack_t board_stack = malloc(sizeof(stack_struct));
+	Stack_init(board_stack,thread_count);
+
+	Push(board_stack,b);
+
+	bool idle[thread_count];
+	int i;
+	for(i=0;i<thread_count;i++){
+		idle[i] = false;
+	}
+
+	char** resultCharGrid=allocate2DArray(SIZE);
+
+	bool all_threads_idle = false;
+	#pragma omp parallel num_threads(thread_count) default(none) shared(resultCharGrid,grid,board_stack,idle,all_threads_idle,result_found)
 	{
-		int tid = omp_get_thread_num();
-		int n_thrds = omp_get_num_threads();
+		while(!all_threads_idle){
 
-		int** thread_grid;
-		int*** thread_possibleValues = allocateArray(SIZE);
-		#pragma omp critical
-		{
-			thread_grid = Pop(grid_stack);
-		}	
-		
-		#pragma omp barrier
+			if (result_found) break;
 
-		initialisePossibleValues(thread_grid,thread_possibleValues);
-		bool thread_result = isSolutionExist(thread_grid,thread_possibleValues);
-		// printf("tid, thread_result : %d,%d\n",tid,thread_result);
-		if (thread_result){
+			board_ptr b_thrd = NULL;
 			#pragma omp critical
 			{
-				result_found = true;
-				copy2DArray(thread_grid,result_grid,SIZE);
+				if(!Empty_stack(board_stack))
+					b_thrd = Pop(board_stack);
 			}
-		}
 
-		if(tid==n_thrds-1){
-			while(!Empty_stack(grid_stack)){
-				// printf("injabcjab");
-				thread_grid = Pop(grid_stack);
-				initialisePossibleValues(thread_grid,thread_possibleValues);
-				bool thread_result = isSolutionExist(thread_grid,thread_possibleValues);
-				if (thread_result){
+			if (b_thrd == NULL){
+				idle[omp_get_thread_num()] = true;
+			}else{
+				idle[omp_get_thread_num()] = false;
+				
+				applyHeuristics(b_thrd);
+
+				int row,col;
+				if(!getMinimumEmptyCell(b_thrd,&row,&col)){
 					#pragma omp critical
 					{
 						result_found = true;
-						copy2DArray(thread_grid,result_grid,SIZE);
+						copy2DArray(b_thrd->grid,resultCharGrid,SIZE);		// solution found
 					}
 				}
+				
+				if (result_found) break;
+
+				if (b_thrd->possibleValues[row][col][0]==0){
+					freeBoard(b_thrd);								// no solution exist
+					continue;
+				}
+
+
+
+				int num;
+				for(num=SIZE;num >=1;num--){
+					if(b_thrd->possibleValues[row][col][num]==1){
+						
+						board_ptr new_b = boardAlloc();
+						new_b->grid = allocate2DArray(SIZE);
+						copy2DArray(b_thrd->grid,new_b->grid,SIZE);
+
+						new_b->possibleValues = allocateArray(SIZE);
+						copyArray(b_thrd->possibleValues,new_b->possibleValues,SIZE);
+
+						new_b->grid[row][col] = num;
+						updatePossibleValues(new_b,row,col);
+						
+						#pragma omp critical
+						{
+							Push(board_stack,new_b);
+						}
+					}
+				}
+
+			freeBoard(b_thrd);
+			}
+
+			#pragma omp master
+			{
+				bool false_found = false;
+				int j;
+				for(j=0;j<omp_get_num_threads();j++){
+					if (idle[j] == false){
+						false_found = true;
+						break;
+					}
+				}
+				if(false_found) all_threads_idle = false;
+				else all_threads_idle = true;
 			}
 		}
 	}
-
-	// bool isSol = isSolutionExist(int** grid);
-	return result_grid;
+	return char2int(resultCharGrid,grid,SIZE);
 }

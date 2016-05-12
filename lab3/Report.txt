@@ -1,0 +1,55 @@
+/*
+ * Author : Aman Bhatia
+ * Dated  : 27/04/2016
+ * Title  : Report for Lab 3 - Parallel Programming
+ */
+
+
+=========================================================================================
+//    DESIGN DECISIONS    :    SCALABILITY ARGUMENTS    :    COMMUNICATION STRATEGY    //
+=========================================================================================
+
+
+------------------
+//	Answer(1)	//
+------------------
+
+- In the first question, the root process generate the data locally.
+- I made a local array in each process, and let the root process(process 0), distribute its randomly generated data to other processes using MPI_Scatter.
+- The solution was pretty simple and there were no hard design decisions in this question.
+
+
+
+------------------
+//	Answer(2)	// 
+------------------
+
+- The data is distributed initially as described in the previous answer. However, our core assumption here is that everything is a power of 2. This assumption is necessary for bitonic sort to work properly.
+
+- Then we sort the process local data using quick sort algorithm with alternating ascending and descending order according to process ids, i.e. even process ids use ascending and odd ids use descending.
+
+- Then in the bitonic sort way, we merge the process local data between two processes, and sort them such that the data is still locally distributed, locally sorted and is also sorted when combined.
+
+- In the blocking part we used MPI_Send and MPI_Recv.
+
+- In the non blocking part, we used the MPI_Isend and MPI_IRecv followed by wait where ever required. This allows a little bit computation to be parallelized, and thus shows decrease in execution time on higher inputs.
+
+- Communication overheads were great when the input size was not large enough. On small input size such as input size less that 1000(2^10), the increase in execution time on executing on greater that one process was clearly seen.
+
+- The program shows scalability on large inputs such as input size larger that 2^20. However, it does not seem to be so scalable on small input sizes. The reason being communication overheads.
+
+- Execution Time as recorded on my laptop (Dell Inspiron, Intel i3 core processor, with 4 cores) for input size of 2^20 is as follows,
+
+$ mpirun -n 1 ./a.out
+Time taken : 0.151122
+
+$ mpirun -n 2 ./a.out
+Time taken : 0.096007
+
+$ mpirun -n 4 ./a.out
+Time taken : 0.124875
+
+
+
+--------------------------------------------END OF REPORT---------------------------------------------
+
